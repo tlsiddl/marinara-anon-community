@@ -1,7 +1,7 @@
 (() => {
   "use strict";
   // ── 익명 커뮤니티 v2 — Marinara 2.3.3 · 2.4.6 겸용 확장 ──
-  const VERSION = "2.3.57";
+  const VERSION = "2.3.58";
   const APP_NAME = "익명 커뮤니티";
   const NS = "anonymousCommunityV2";
   const V1_NS = "anonymousCommunityV1";
@@ -781,7 +781,7 @@
       .replace(/(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/gi," ")
       .replace(/(?:월|화|수|목|금|토|일)요일/g," ")
       .replace(/[([{]\s*[월화수목금토일月火水木金土日]\s*[)\]}]/g," ")
-      .replace(/(?:날짜|일시|시각|시간|DATE|TIME)\s*[:：]/gi," ")
+      .replace(/(?:날짜|일시|시각|시간|DATE|TIME)\s*[:：=]/gi," ")
       .replace(/[*_`#§\[\]{}()【】「」⟦⟧]/g," ")
       .replace(/[｜│┃•·,;🕐🕒🕔🕘📅📆⏰🕰]/gu," ");
     // Optional time-first tracker format. Scan bounded pipe-separated fields so an
