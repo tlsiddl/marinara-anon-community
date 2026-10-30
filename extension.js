@@ -1,7 +1,7 @@
 (() => {
   "use strict";
   // ── 익명 커뮤니티 v2 — Marinara 2.3.3 · 2.4.6 겸용 확장 ──
-  const VERSION = "2.3.56";
+  const VERSION = "2.3.57";
   const APP_NAME = "익명 커뮤니티";
   const NS = "anonymousCommunityV2";
   const V1_NS = "anonymousCommunityV1";
@@ -204,7 +204,7 @@
   function defaultIdentity(global = false) { return { boardName: global ? DEFAULT_BOARD_NAME : "", nickBase: "", rules: "", regulars: [], theme: "", pov: "" }; }
   function defaultSettings() {
     return {
-      userNickMigrationDone: false, userNickMode: "random", userNickname: "", userDepartment: "", rpTimeRead: true, rpInject: true, rpPinnedPriority: true, lastTab: 0, summaryRead: true, characterRead: false, personaRead: false, ltmRead: false, memoryRead: true, commentCap: 200, loreRead: false, loreMode: "full",
+      userNickMigrationDone: false, userNickMode: "random", userNickname: "", userDepartment: "", rpTimeRead: true, rpTimeFormat: "default", rpInject: true, rpPinnedPriority: true, lastTab: 0, summaryRead: true, characterRead: false, personaRead: false, ltmRead: false, memoryRead: true, commentCap: 200, loreRead: false, loreMode: "full",
       darkMode: true, theme: "gall", tone: true, nuances: [], nuanceText: "",
       postMin: 3, postMax: 8, commentMin: 3, commentMax: 8, turnCount: 20,
       archiveRules: "날짜·화제·주요 댓글 반응·실제 RP의 관련 결과를 간결하게 정리해 주세요. 소문과 확인된 사실을 구분하고, 익명 작성자는 확정하지 마세요. 이후 대화에서 다시 불릴 구체적인 인명·별칭·장소·사건을 키워드로 골라 주세요.", connectionId: "", trConnectionId: "", prompt: DEFAULT_PROMPT,
@@ -425,7 +425,7 @@
     return {
       userNickMigrationDone: s.userNickMigrationDone === true, userNickMode: s.userNickMode === "custom" ? "custom" : "random", userNickname: cleanLine(s.userNickname,40), userDepartment: cleanLine(s.userDepartment,24),
       theme: THEMES.some((t) => t.id === s.theme) ? s.theme : b.theme,
-      darkMode: s.darkMode !== false, lastTab: int(s.lastTab, 0, 0, 3), tone: s.tone !== false, rpTimeRead: s.rpTimeRead !== false, rpInject: s.rpInject !== false, rpPinnedPriority: s.rpPinnedPriority !== false, summaryRead: s.summaryRead !== false, characterRead: s.characterRead === true, personaRead: s.personaRead === true, ltmRead: s.ltmRead === true, memoryRead: s.memoryRead !== false, commentCap: [200, 300, 500, 1000, 2000].includes(Number(s.commentCap)) ? Number(s.commentCap) : 200, loreRead: s.loreRead === true, loreMode: s.loreMode === "relevant" ? "relevant" : "full",
+      darkMode: s.darkMode !== false, lastTab: int(s.lastTab, 0, 0, 3), tone: s.tone !== false, rpTimeRead: s.rpTimeRead !== false, rpTimeFormat: s.rpTimeFormat === "time-first" ? "time-first" : "default", rpInject: s.rpInject !== false, rpPinnedPriority: s.rpPinnedPriority !== false, summaryRead: s.summaryRead !== false, characterRead: s.characterRead === true, personaRead: s.personaRead === true, ltmRead: s.ltmRead === true, memoryRead: s.memoryRead !== false, commentCap: [200, 300, 500, 1000, 2000].includes(Number(s.commentCap)) ? Number(s.commentCap) : 200, loreRead: s.loreRead === true, loreMode: s.loreMode === "relevant" ? "relevant" : "full",
       nuances: safeArray(s.nuances).filter((x) => NUANCES.some((n) => n[0] === x)),
       archiveRules: typeof s.archiveRules === "string" ? cleanText(s.archiveRules,4000) : b.archiveRules, nuanceText: cleanText(s.nuanceText, 2000),
       postMin, postMax: int(s.postMax, b.postMax, postMin, 8),
@@ -784,6 +784,28 @@
       .replace(/(?:날짜|일시|시각|시간|DATE|TIME)\s*[:：]/gi," ")
       .replace(/[*_`#§\[\]{}()【】「」⟦⟧]/g," ")
       .replace(/[｜│┃•·,;🕐🕒🕔🕘📅📆⏰🕰]/gu," ");
+    // Optional time-first tracker format. Scan bounded pipe-separated fields so an
+    // unrelated later year or place cannot be combined with the clock.
+    if (state.data?.settings?.rpTimeFormat === "time-first") {
+      const months = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+      const clock = /(?<!\d)(\d{1,2}):(\d{2})\s*(AM|PM)?\s*\|\s*([^|\n]{1,80})/gi;
+      let match, custom = null;
+      while ((match = clock.exec(normalized))) {
+        const part = match[4];
+        const numeric = part.match(/^\s*(\d{4}|\d{2})[-/.](\d{1,2})[-/.](\d{1,2})(?!\d)/);
+        const english = part.match(/^\s*([A-Za-z]{3,9})\s+(\d{1,2})\s+(\d{4})(?!\d)/);
+        let year, month, day;
+        if (numeric) { year=Number(numeric[1]); month=Number(numeric[2]); day=Number(numeric[3]); if (year<100) year+=2000; }
+        else if (english) { month=/^(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)$/i.test(english[1]) ? months.indexOf(english[1].slice(0,3).toLowerCase())+1 : 0; day=Number(english[2]); year=Number(english[3]); }
+        else continue;
+        let hour=Number(match[1]), minute=Number(match[2]); const period=(match[3] || "").toLowerCase();
+        if (period) { if (hour<1 || hour>12) continue; hour=hour%12+(period === "pm" ? 12 : 0); }
+        if (!month || month>12 || day<1 || day>31 || hour>23 || minute>59) continue;
+        const d=new Date(year,month-1,day,hour,minute,0,0);
+        if (d.getFullYear()===year && d.getMonth()===month-1 && d.getDate()===day) custom=d.getTime();
+      }
+      if (custom !== null) return custom;
+    }
     const re = /(?<!\d)(\d{4}|\d{2})\s*(?:년\s*|[-/.]\s*)(\d{1,2})\s*(?:월\s*|[-/.]\s*)(\d{1,2})\s*(?:일\s*|[T\s,|·.])+\s*(?:\([^\n)]{1,12}\)\s*\|?\s*)?(오전|오후|AM|PM)?\s*(\d{1,2})\s*(?:시\s*|:)\s*(\d{1,2})\s*(?:분)?/gi;
     let m, found = null;
     while ((m = re.exec(normalized))) {
@@ -2050,6 +2072,7 @@ JSON 하나만 출력한다. Markdown 코드펜스나 설명을 붙이지 않는
       <h2>로어북 참고</h2><label class="rowset"><span>연결된 로어북 참고하기<small>게시글·댓글 생성 때 연결 로어북의 설정·기억을 참고해요. 60초 캐시, 원 RP의 로어북 설정은 바꾸지 않아요.</small></span><input type="checkbox" class="sw-in" data-set="loreRead" ${s.loreRead ? "checked" : ""}><i class="sw ${s.loreRead ? "on" : ""}"></i></label>
       <div class="rowset"><span>로어북 읽기 범위<small>전체: 켜진 항목 원문을 모두 전송. 관련: 키워드로 고른 최대 8개·8,000자.</small></span><select data-set="loreMode"><option value="full" ${s.loreMode === "full" ? "selected" : ""}>전체 · 기억 포함</option><option value="relevant" ${s.loreMode === "relevant" ? "selected" : ""}>관련 항목 · 경량</option></select></div>
       <h2>RP 시간 연동</h2><label class="rowset"><span>본문의 RP 날짜·시간 사용<small>켜면 본문에 표시된 RP 시각으로 작성 시간을 정해요. 끄면 날짜 확인 없이 생성하고 실제 작성 시각을 사용해요. 최근 10분 소재 자동 선택은 시간 연동이 켜져 있을 때만 작동해요. 직접 선택한 원문·상황은 계속 전달해요. 최근 대화 원문에 적힌 날짜는 삭제하지 않아요.</small></span><input type="checkbox" class="sw-in" data-set="rpTimeRead" ${s.rpTimeRead ? "checked" : ""}><i class="sw ${s.rpTimeRead ? "on" : ""}"></i></label>
+      <div class="rowset"><span>추가 날짜·시간 형식<small>시각이 날짜보다 앞서는 트래커를 쓰면 선택해요. 예: 09:48 AM | Oct 31, Saturday, 2026 또는 09:49 AM | 2026-10-31. 해당 형식을 먼저 찾고, 없으면 기본 형식을 사용해요.</small></span><select data-set="rpTimeFormat"><option value="default" ${s.rpTimeFormat === "default" ? "selected" : ""}>기본 형식</option><option value="time-first" ${s.rpTimeFormat === "time-first" ? "selected" : ""}>시각 | 날짜 (영어 월 포함)</option></select></div>
       <h2>롤플 소재</h2><label class="rowset"><span>선택 원문을 우선 대화 소재로 사용<small>직접 고른 글을 일반 배경 자료보다 먼저 활용하도록 안내해요. 최신 사용자 지시·캐릭터 설정·정보를 알게 되는 과정은 유지해요.</small></span><input type="checkbox" class="sw-in" data-set="rpPinnedPriority" ${s.rpPinnedPriority ? "checked" : ""}><i class="sw ${s.rpPinnedPriority ? "on" : ""}"></i></label><label class="rowset"><span>최근 게시판 소재 자동으로 붙이기<small>본문의 날짜·시간 기준. 최대 3개, 약 1,200자. 첫 생성부터 세 번에 한 번, 선택적으로 사용. 웹소설 독자·드라마 시청자와 직접 정한 관점은 제외.</small></span><input type="checkbox" class="sw-in" data-set="rpInject" ${s.rpInject ? "checked" : ""}><i class="sw ${s.rpInject ? "on" : ""}"></i></label>
       <h2>이 방의 사용자 닉네임</h2><p class="hint">부서·업계·닉네임과 랜덤닉 선택은 방별로 저장해요. 글·댓글·답글에서 함께 사용해요.</p>${c.chatId ? `<label>${c.t.id === "work_public" ? "업계" : "부서"}<input class="in" data-user-nick-field="userDepartment" maxlength="24" value="${esc(userNickSettings(c.chatId).userDepartment)}" placeholder="${c.t.id === "work_public" ? "예: IT · 금융 · 교육" : "예: 정보팀 · 비서실"}"></label><label>닉네임<input class="in" data-user-nick-field="userNickname" maxlength="40" value="${esc(userNickSettings(c.chatId).userNickname)}" placeholder="사용할 닉네임"></label>` : '<p class="hint">방을 연 뒤 닉네임을 설정해 주세요.</p>'}
       <h2>현재 탭 지침 · ${esc(POV_MODES.find(([mode]) => mode === c.id.povMode)?.[1] || "세계 주민")}</h2>
